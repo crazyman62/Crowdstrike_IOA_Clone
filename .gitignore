@@ -1,0 +1,21 @@
+# Configuration file containing sensitive credentials
+config.json
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment folders (common names)
+venv/
+env/
+.venv/
+.env/
+
+# IDE specific files (examples)
+.vscode/
+.idea/
+
+# Other common ignores
+*.log
+*.swp
