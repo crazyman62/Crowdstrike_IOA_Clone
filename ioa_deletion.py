@@ -2,37 +2,48 @@
 # Contains logic for deleting IOA rule groups
 
 import json
+import logging
 
 # Import necessary components from utils
-from ioa_utils import Color, open_sdk
+from ioa_utils import Color # Keep Color for potential inline formatting if needed later
+
+# Get a logger instance for this module
+logger = logging.getLogger(__name__)
 
 def delete_ioas(
-    args: object, # Pass argparse namespace
     sdk: object, # Pass initialized SDK
     ids_to_delete: str,
     summary_tracker: object, # Pass summary tracker instance
-    target_cid: str = None # Add target_cid for summary tracking
+    target_cid: str = None, # Add target_cid for summary tracking
+    kids_details: dict = None, # Pass kids details for name lookup in summary
+    thread_name: str = "MainThread" # Accept thread name
     ):
     """
-    Deletes specified IOA rule groups using the provided SDK.
+    Deletes specified IOA rule groups using the provided SDK. Uses logging.
     Updates the provided summary_tracker object.
     Returns a dictionary with deletion summary counts.
     """
+    if kids_details is None:
+        kids_details = {} # Ensure it's a dict even if not passed
+
     if not sdk:
-         print(f"{Color.RED}Error: SDK not provided to delete_ioas.{Color.END}")
+         logger.error("SDK object not provided to delete_ioas.")
          delete_summary = {"deleted_count": 0, "failed_count": 0, "errors": [{"message": "SDK not provided"}]}
-         summary_tracker.update_delete_summary(target_cid, delete_summary) # Update tracker with failure
+         # Pass kids/thread to summary update even on failure
+         summary_tracker.update_delete_summary(target_cid, delete_summary, kids_details, thread_name)
          return delete_summary # Cannot proceed
 
     delete_summary = {"deleted_count": 0, "failed_count": 0, "errors": []}
     id_list = [i.strip() for i in ids_to_delete.split(",") if i.strip()]
     if not id_list:
-        print(f"{Color.YELLOW}Warning: No valid rule group IDs provided for deletion.{Color.END}")
+        logger.warning("No valid rule group IDs provided for deletion.")
         delete_summary["errors"].append({"message": "No valid IDs provided for deletion"})
-        summary_tracker.update_delete_summary(target_cid, delete_summary) # Update tracker
+        # Pass kids/thread to summary update
+        summary_tracker.update_delete_summary(target_cid, delete_summary, kids_details, thread_name)
         return delete_summary # Return immediately
 
-    print(f"Attempting to delete {len(id_list)} rule group(s): {', '.join(id_list)}")
+    target_desc = f"CID {target_cid}" if target_cid else "Source Tenant"
+    logger.info(f"Attempting to delete {len(id_list)} rule group(s) in {target_desc}: {', '.join(id_list)}")
     try:
         # Add comment for audit log
         res = sdk.delete_rule_groups(ids=id_list, comment="Deleting rule groups via script.")
@@ -50,32 +61,31 @@ def delete_ioas(
                 delete_summary["deleted_count"] = len(id_list) - len(fail_ids)
 
             if delete_summary["failed_count"] > 0:
-                print(f"{Color.YELLOW}Deletion request partially successful.{Color.END}")
-                print(f"  {Color.GREEN}Successfully deleted: {delete_summary['deleted_count']}{Color.END}")
-                print(f"  {Color.RED}Failed to delete: {delete_summary['failed_count']}{Color.END}")
+                logger.warning(f"Deletion request partially successful for {target_desc}.")
+                logger.info(f"  Successfully deleted: {delete_summary['deleted_count']}")
+                logger.warning(f"  Failed to delete: {delete_summary['failed_count']}")
                 if errs:
-                    print(f"  {Color.RED}Reported Errors:{Color.END}")
-                    for error in errs: print(f"    - ID:{error.get('id','N/A')}, Code:{error.get('code','N/A')}, Msg:{error.get('message','Unknown')}")
+                    logger.error(f"  Reported Deletion Errors for {target_desc}:")
+                    for error in errs: logger.error(f"    - ID:{error.get('id','N/A')}, Code:{error.get('code','N/A')}, Msg:{error.get('message','Unknown')}")
                     delete_summary["errors"] = errs # Store errors in summary
             else:
-                 print(f"{Color.GREEN}Successfully requested deletion for all {delete_summary['deleted_count']} rule group(s).{Color.END}")
+                 logger.info(f"Successfully requested deletion for all {delete_summary['deleted_count']} group(s) in {target_desc}.")
         else: # Status code indicates failure
-            print(f"{Color.RED}Error during deletion request. Status: {code or 'N/A'}{Color.END}")
+            logger.error(f"Error during deletion request for {target_desc}. Status: {code or 'N/A'}")
             delete_summary["failed_count"] = len(id_list); delete_summary["deleted_count"] = 0
             if errs:
-                print(f"{Color.RED}Deletion Errors Reported:{Color.END}")
-                for error in errs: print(f"  Code:{error.get('code','N/A')}, Msg:{error.get('message','Unknown')}, ID:{error.get('id','')}")
+                logger.error(f"Deletion Errors Reported for {target_desc}:")
+                for error in errs: logger.error(f"  Code:{error.get('code','N/A')}, Msg:{error.get('message','Unknown')}, ID:{error.get('id','')}")
                 delete_summary["errors"] = errs
             else:
                  e_msg = f"Delete API failed code {code}"
-                 print(f"  {e_msg}")
+                 logger.error(f"  {e_msg}")
                  delete_summary["errors"].append({"message": e_msg, "status_code": code})
     except Exception as e:
-        print(f"{Color.RED}Exception calling delete_rule_groups API: {e}{Color.END}")
+        logger.error(f"Exception calling delete_rule_groups API for {target_desc}: {e}", exc_info=True)
         delete_summary["failed_count"]=len(id_list); delete_summary["deleted_count"]=0
         delete_summary["errors"].append({"message":f"Exception during delete: {e}"})
 
     # Update the main summary tracker
-    summary_tracker.update_delete_summary(target_cid, delete_summary)
+    summary_tracker.update_delete_summary(target_cid, delete_summary, kids_details, thread_name)
     return delete_summary # Return summary for this specific deletion run
-
