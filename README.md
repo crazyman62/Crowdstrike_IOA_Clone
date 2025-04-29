@@ -73,7 +73,8 @@ You can use a JSON file to store your API credentials and default settings. Use 
   "rule_name": null,
   "target_group_name": null,
   "managed_targets": null,
-  "delete_ids": null
+  "delete_ids": null.
+  "max_workers":"20"
 }
 Notes on Config File:Keys in the JSON file correspond to the long names of the command-line arguments (e.g., falcon_client_id corresponds to --falcon_client_id).Values provided on the command line will always override values in the config file.If falcon_client_id and falcon_client_secret are present in the config file, you do not need to provide -k and -s on the command line.Boolean values should be true or false (lowercase) in JSON.Use null for arguments that shouldn't have a default value from the config (like filters or specific target lists, unless you always want the same default).UsageRun the main script from your terminal using python ioa_main.py followed by the necessary arguments.# Using command-line args only
 python ioa_main.py -k YOUR_ID -s YOUR_SECRET [ACTION] [OPTIONS...]
